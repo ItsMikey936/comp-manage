@@ -5,11 +5,11 @@ import "../styles/global.css"
 import { supabase } from '../lib/supabase';
 import EquipmentRow from './equipment-row.astro';
 
-// 2. Consulta en el servidor. Orden ascendente: el equipo nuevo siempre queda al final, junto al botón +
+// 2. Consulta en el servidor, ordenada por número de equipo (1, 2, 3, 4...)
 const { data: equipmentList, error } = await supabase
   .from('computer_equipment')
   .select('*')
-  .order('created_at', { ascending: true });
+  .order('id', { ascending: true });
 
 if (error) {
   console.error('Error al obtener los datos:', error);
@@ -51,7 +51,41 @@ const total = equipmentList?.length ?? 0;
 
   {equipmentList && (
     <>
+      <div class="sticky top-0 z-10 -mx-4 mb-4 bg-white/90 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
+        <label for="equipment-search" class="sr-only">Buscar equipo por número</label>
+        <div class="relative">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            class="pointer-events-none absolute left-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400"
+            aria-hidden="true"
+          >
+            <circle cx="11" cy="11" r="7"></circle>
+            <path d="m20 20-3.5-3.5"></path>
+          </svg>
+          <input
+            id="equipment-search"
+            type="search"
+            inputmode="numeric"
+            autocomplete="off"
+            placeholder="Buscar por número de equipo"
+            class="block min-h-11 w-full rounded-lg border border-slate-300 bg-white py-2.5 pl-11 pr-3 text-base text-slate-900 shadow-sm placeholder:text-slate-400 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/30 sm:text-sm"
+          />
+        </div>
+      </div>
+
       <div id="equipment-list" class="space-y-3">
+        <p
+          id="no-results"
+          hidden
+          class="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-6 py-10 text-center text-sm text-slate-500"
+        >
+          No hay ningún equipo con ese número.
+        </p>
         {total === 0 && (
           <p
             id="empty-row"
@@ -103,6 +137,8 @@ const total = equipmentList?.length ?? 0;
   const template = document.getElementById('row-template') as HTMLTemplateElement | null;
   const message = document.getElementById('equipment-message') as HTMLParagraphElement | null;
   const count = document.getElementById('equipment-count');
+  const search = document.getElementById('equipment-search') as HTMLInputElement | null;
+  const noResults = document.getElementById('no-results');
 
   let messageTimer: number | undefined;
 
@@ -138,9 +174,35 @@ const total = equipmentList?.length ?? 0;
 
   const updateCount = () => {
     if (!list || !count) return;
-    const total = list.querySelectorAll('details[data-id]').length;
-    count.textContent = `${total} ${total === 1 ? 'equipo registrado' : 'equipos registrados'}`;
+    const items = Array.from(list.querySelectorAll<HTMLElement>('details[data-id]'));
+    const total = items.length;
+    const shown = items.filter((item) => !item.hidden).length;
+    count.textContent =
+      shown === total
+        ? `${total} ${total === 1 ? 'equipo registrado' : 'equipos registrados'}`
+        : `${shown} de ${total} equipos`;
   };
+
+  // Búsqueda por número de equipo: muestra solo los que coinciden y abre el equipo si queda uno solo
+  const applyFilter = () => {
+    if (!list || !search) return;
+    const query = search.value.replace(/\D/g, '');
+    if (search.value !== query) search.value = query;
+
+    const items = Array.from(list.querySelectorAll<HTMLElement>('details[data-id]'));
+    const visible: HTMLElement[] = [];
+    items.forEach((item) => {
+      const match = !query || (item.dataset.id ?? '').includes(query);
+      item.hidden = !match;
+      if (match) visible.push(item);
+    });
+
+    if (noResults) noResults.hidden = !(query && visible.length === 0);
+    if (query && visible.length === 1) (visible[0] as HTMLDetailsElement).open = true;
+    updateCount();
+  };
+
+  search?.addEventListener('input', applyFilter);
 
   // Actualiza el color del selector según la opción elegida
   const paintSelect = (select: HTMLSelectElement) => {
@@ -218,9 +280,11 @@ const total = equipmentList?.length ?? 0;
       item.open = true;
 
       document.getElementById('empty-row')?.remove();
+      // Se limpia la búsqueda para que el equipo nuevo siempre quede visible
+      if (search) search.value = '';
       list.appendChild(item);
       summarize(item);
-      updateCount();
+      applyFilter();
 
       item.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       (item.querySelector('select') as HTMLSelectElement | null)?.focus();
