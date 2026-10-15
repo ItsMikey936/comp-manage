@@ -28,7 +28,7 @@ const columns = [
 const total = equipmentList?.length ?? 0;
 ---
 
-<section class="mx-auto w-full max-w-7xl px-4 py-8 font-sans sm:px-6 lg:px-8 lg:py-12">
+<section class="mx-auto w-full max-w-4xl px-4 py-8 font-sans sm:px-6 lg:px-8 lg:py-12">
   <header class="mb-6 flex flex-col gap-1 sm:mb-8 sm:flex-row sm:items-end sm:justify-between">
     <h2 class="text-2xl font-semibold tracking-tight text-slate-900 sm:text-3xl">
       Inventario de equipos de cómputo
@@ -51,37 +51,18 @@ const total = equipmentList?.length ?? 0;
 
   {equipmentList && (
     <>
-      <div class="rounded-xl border border-slate-200 bg-white shadow-sm xl:overflow-x-auto max-xl:border-0 max-xl:bg-transparent max-xl:shadow-none">
-        <table class="w-full text-left text-sm max-xl:block">
-          <thead class="bg-slate-50 text-xs font-semibold text-slate-600 max-xl:hidden">
-            <tr class="border-b border-slate-200">
-              <th scope="col" class="px-3 py-3 xl:px-4">Equipo</th>
-              {columns.map((col) => (
-                <th scope="col" class="px-3 py-3 xl:px-4">{col.label}</th>
-              ))}
-              <th scope="col" class="px-3 py-3 xl:px-4">Nota</th>
-            </tr>
-          </thead>
-
-          <tbody
-            id="equipment-body"
-            class="divide-y divide-slate-100 max-xl:grid max-xl:grid-cols-1 max-xl:gap-3 max-xl:divide-y-0 md:max-xl:grid-cols-2"
+      <div id="equipment-list" class="space-y-3">
+        {total === 0 && (
+          <p
+            id="empty-row"
+            class="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-6 py-10 text-center text-sm text-slate-500"
           >
-            {total === 0 && (
-              <tr id="empty-row" class="max-xl:block md:max-xl:col-span-2">
-                <td
-                  colspan={columns.length + 2}
-                  class="px-4 py-10 text-center text-sm text-slate-500 max-xl:block max-xl:rounded-xl max-xl:border max-xl:border-dashed max-xl:border-slate-300"
-                >
-                  Todavía no hay equipos. Usa el botón + para agregar el primero.
-                </td>
-              </tr>
-            )}
-            {equipmentList.map((item) => (
-              <EquipmentRow item={item} columns={columns} />
-            ))}
-          </tbody>
-        </table>
+            Todavía no hay equipos. Usa el botón + para agregar el primero.
+          </p>
+        )}
+        {equipmentList.map((item) => (
+          <EquipmentRow item={item} columns={columns} />
+        ))}
       </div>
 
       <div class="mt-6 flex flex-col items-center gap-2">
@@ -108,7 +89,7 @@ const total = equipmentList?.length ?? 0;
         <p id="equipment-message" role="status" aria-live="polite" class="min-h-5 text-center text-sm"></p>
       </div>
 
-      <!-- Plantilla de la fila que se agrega al pulsar + -->
+      <!-- Plantilla del equipo que se agrega al pulsar + -->
       <template id="row-template">
         <EquipmentRow columns={columns} />
       </template>
@@ -117,7 +98,7 @@ const total = equipmentList?.length ?? 0;
 </section>
 
 <script>
-  const tbody = document.getElementById('equipment-body') as HTMLTableSectionElement | null;
+  const list = document.getElementById('equipment-list') as HTMLDivElement | null;
   const addButton = document.getElementById('add-equipment') as HTMLButtonElement | null;
   const template = document.getElementById('row-template') as HTMLTemplateElement | null;
   const message = document.getElementById('equipment-message') as HTMLParagraphElement | null;
@@ -156,8 +137,8 @@ const total = equipmentList?.length ?? 0;
   };
 
   const updateCount = () => {
-    if (!tbody || !count) return;
-    const total = tbody.querySelectorAll('tr[data-id]').length;
+    if (!list || !count) return;
+    const total = list.querySelectorAll('details[data-id]').length;
     count.textContent = `${total} ${total === 1 ? 'equipo registrado' : 'equipos registrados'}`;
   };
 
@@ -166,14 +147,45 @@ const total = equipmentList?.length ?? 0;
     select.dataset.state = select.selectedOptions[0]?.dataset.slug ?? '';
   };
 
-  // Guardado automático: al cambiar un estado o una nota se actualiza esa fila
-  tbody?.addEventListener('change', async (event) => {
-    const target = event.target as HTMLSelectElement | HTMLInputElement;
-    const field = target.dataset.field;
-    const id = target.closest('tr')?.dataset.id;
-    if (!field || !id) return;
+  // Actualiza el resumen que se ve con el equipo cerrado (misma lógica que en el servidor)
+  const summarize = (item: HTMLElement) => {
+    const values = Array.from(item.querySelectorAll<HTMLSelectElement>('select')).map((s) => s.value);
+    const damaged = values.filter((v) => v === 'Dañado').length;
+    const regular = values.filter((v) => v === 'Regular').length;
+    const unset = values.filter((v) => !v).length;
 
-    if (target instanceof HTMLSelectElement) paintSelect(target);
+    let health = 'ok';
+    let text = 'Todo bien';
+    if (damaged) {
+      health = 'bad';
+      text = `${damaged} ${damaged === 1 ? 'dañado' : 'dañados'}`;
+    } else if (regular) {
+      health = 'warn';
+      text = `${regular} ${regular === 1 ? 'regular' : 'regulares'}`;
+    } else if (unset) {
+      health = 'pending';
+      text = `${unset} sin revisar`;
+    }
+
+    const badge = item.querySelector<HTMLElement>('[data-summary]');
+    if (badge) {
+      badge.dataset.health = health;
+      badge.textContent = text;
+    }
+  };
+
+  // Guardado automático: al cambiar un estado o una nota se actualiza ese equipo
+  list?.addEventListener('change', async (event) => {
+    const target = event.target as HTMLSelectElement | HTMLTextAreaElement;
+    const field = target.dataset.field;
+    const item = target.closest<HTMLElement>('details[data-id]');
+    const id = item?.dataset.id;
+    if (!field || !item || !id) return;
+
+    if (target instanceof HTMLSelectElement) {
+      paintSelect(target);
+      summarize(item);
+    }
 
     try {
       await request('PATCH', { id: Number(id), field, value: target.value.trim() || null });
@@ -182,31 +194,36 @@ const total = equipmentList?.length ?? 0;
     } catch (err) {
       console.error('Error al guardar el cambio:', err);
       target.value = target.dataset.prev ?? '';
-      if (target instanceof HTMLSelectElement) paintSelect(target);
+      if (target instanceof HTMLSelectElement) {
+        paintSelect(target);
+        summarize(item);
+      }
       showMessage(err instanceof Error ? err.message : 'No se pudo guardar el cambio.', 'error');
     }
   });
 
-  // Botón +: crea el equipo (el id se incrementa solo) y agrega la fila
+  // Botón +: crea el equipo (el id se incrementa solo) y lo agrega ya desplegado
   addButton?.addEventListener('click', async () => {
-    if (!tbody || !template) return;
+    if (!list || !template) return;
     addButton.disabled = true;
 
     try {
       const { id } = await request('POST');
 
       const fragment = template.content.cloneNode(true) as DocumentFragment;
-      const row = fragment.querySelector('tr') as HTMLTableRowElement;
-      row.dataset.id = String(id);
-      const idCell = row.querySelector('[data-id-cell]');
+      const item = fragment.querySelector('details') as HTMLDetailsElement;
+      item.dataset.id = String(id);
+      const idCell = item.querySelector('[data-id-cell]');
       if (idCell) idCell.textContent = String(id);
+      item.open = true;
 
       document.getElementById('empty-row')?.remove();
-      tbody.appendChild(row);
+      list.appendChild(item);
+      summarize(item);
       updateCount();
 
-      row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      (row.querySelector('select') as HTMLSelectElement | null)?.focus();
+      item.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      (item.querySelector('select') as HTMLSelectElement | null)?.focus();
       showMessage(`Equipo ${id} agregado.`, 'ok');
     } catch (err) {
       console.error('Error al agregar el equipo:', err);

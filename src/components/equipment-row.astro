@@ -1,5 +1,5 @@
 ---
-// Sirve para las filas que vienen de la base de datos (item) y como plantilla de fila nueva (sin item)
+// Sirve para los equipos que vienen de la base de datos (item) y como plantilla de equipo nuevo (sin item)
 const { item = null, columns = [] } = Astro.props;
 
 const states = [
@@ -12,9 +12,36 @@ const states = [
 
 const slugOf = (value) => states.find((s) => s.value === value)?.slug ?? '';
 
+// Resumen visible con el desplegable cerrado: prioriza lo que necesita atención
+const values = columns.map((col) => item?.[col.key]);
+const damaged = values.filter((v) => v === 'Dañado').length;
+const regular = values.filter((v) => v === 'Regular').length;
+const unset = values.filter((v) => !v).length;
+
+let health = 'ok';
+let healthText = 'Todo bien';
+if (damaged) {
+  health = 'bad';
+  healthText = `${damaged} ${damaged === 1 ? 'dañado' : 'dañados'}`;
+} else if (regular) {
+  health = 'warn';
+  healthText = `${regular} ${regular === 1 ? 'regular' : 'regulares'}`;
+} else if (unset) {
+  health = 'pending';
+  healthText = `${unset} sin revisar`;
+}
+
+const badgeClasses = [
+  'inline-flex shrink-0 items-center whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset',
+  'bg-slate-100 text-slate-600 ring-slate-500/20',
+  'data-[health=ok]:bg-emerald-50 data-[health=ok]:text-emerald-700 data-[health=ok]:ring-emerald-600/20',
+  'data-[health=warn]:bg-amber-50 data-[health=warn]:text-amber-700 data-[health=warn]:ring-amber-600/20',
+  'data-[health=bad]:bg-rose-50 data-[health=bad]:text-rose-700 data-[health=bad]:ring-rose-600/20',
+].join(' ');
+
 // El color del selector cambia según data-state (se actualiza solo al elegir otra opción)
 const selectClasses = [
-  'ml-auto block min-w-0 max-w-44 flex-1 cursor-pointer rounded-md border-0 px-2 py-2.5 text-base font-medium ring-1 ring-inset xl:ml-0 xl:w-full xl:min-w-28 xl:max-w-none xl:flex-none xl:py-1.5 xl:text-xs',
+  'block w-full cursor-pointer rounded-md border-0 px-3 py-2.5 text-base font-medium ring-1 ring-inset sm:py-2 sm:text-sm',
   'bg-slate-100 text-slate-500 ring-slate-500/20',
   'data-[state=excelente]:bg-emerald-50 data-[state=excelente]:text-emerald-700 data-[state=excelente]:ring-emerald-600/20',
   'data-[state=bueno]:bg-sky-50 data-[state=bueno]:text-sky-700 data-[state=bueno]:ring-sky-600/20',
@@ -24,53 +51,67 @@ const selectClasses = [
   'focus:outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-500',
   '[&>option]:bg-white [&>option]:text-slate-900',
 ].join(' ');
-
-const cellClasses =
-  'px-4 py-3 xl:px-4 max-xl:flex max-xl:items-center max-xl:justify-between max-xl:gap-4 max-xl:border-b max-xl:border-slate-100 before:content-[attr(data-label)] before:shrink-0 before:text-xs before:font-semibold before:text-slate-500 xl:before:hidden';
 ---
 
-<tr
+<details
   data-id={item?.id}
-  class="transition-colors hover:bg-slate-50 max-xl:block max-xl:overflow-hidden max-xl:rounded-xl max-xl:border max-xl:border-slate-200 max-xl:bg-white max-xl:shadow-sm max-xl:hover:bg-white"
+  class="group rounded-xl border border-slate-200 bg-white shadow-sm transition-shadow open:shadow-md"
 >
-  <td
-    data-label="Equipo"
-    class="px-4 py-3 font-medium text-slate-900 xl:px-4 max-xl:flex max-xl:items-center max-xl:justify-between max-xl:gap-4 max-xl:border-b max-xl:border-slate-100 max-xl:bg-slate-50 before:content-[attr(data-label)] before:shrink-0 before:text-xs before:font-semibold before:text-slate-500 xl:before:hidden"
+  <summary
+    class="flex min-h-14 cursor-pointer list-none items-center justify-between gap-3 rounded-xl px-4 py-3 select-none hover:bg-slate-50 focus:outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-500 sm:px-5 [&::-webkit-details-marker]:hidden"
   >
-    <span data-id-cell>{item?.id}</span>
-  </td>
-
-  {columns.map((col) => (
-    <td data-label={col.label} class={cellClasses}>
-      <select
-        data-field={col.key}
-        data-prev={item?.[col.key] ?? ''}
-        data-state={slugOf(item?.[col.key])}
-        aria-label={col.label}
-        class={selectClasses}
+    <span class="flex min-w-0 items-center gap-3">
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2.5"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        class="h-4 w-4 shrink-0 text-slate-400 transition-transform group-open:rotate-90"
+        aria-hidden="true"
       >
-        <option value="" disabled selected={!item?.[col.key]}>Elegir estado</option>
-        {states.map((state) => (
-          <option value={state.value} data-slug={state.slug} selected={item?.[col.key] === state.value}>
-            {state.value}
-          </option>
-        ))}
-      </select>
-    </td>
-  ))}
+        <path d="m9 6 6 6-6 6"></path>
+      </svg>
+      <span class="truncate text-base font-semibold text-slate-900">
+        Equipo <span data-id-cell>{item?.id}</span>
+      </span>
+    </span>
+    <span data-summary data-health={health} class={badgeClasses}>{healthText}</span>
+  </summary>
 
-  <td
-    data-label="Nota"
-    class="px-4 py-3 xl:px-4 max-xl:flex max-xl:flex-col max-xl:gap-1.5 before:content-[attr(data-label)] before:shrink-0 before:text-xs before:font-semibold before:text-slate-500 xl:before:hidden"
-  >
-    <input
-      type="text"
-      data-field="note"
-      data-prev={item?.note ?? ''}
-      value={item?.note ?? ''}
-      placeholder="Sin notas"
-      aria-label="Nota"
-      class="block w-full rounded-md border border-transparent bg-transparent px-2 py-2.5 text-base xl:py-1.5 xl:text-sm text-slate-700 placeholder:text-slate-400 hover:border-slate-200 focus:border-sky-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/30 xl:min-w-40 max-xl:border-slate-200 max-xl:bg-white"
-    />
-  </td>
-</tr>
+  <div class="border-t border-slate-100 px-4 py-5 sm:px-5">
+    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+      {columns.map((col) => (
+        <label class="block">
+          <span class="mb-1.5 block text-sm font-medium text-slate-700">{col.label}</span>
+          <select
+            data-field={col.key}
+            data-prev={item?.[col.key] ?? ''}
+            data-state={slugOf(item?.[col.key])}
+            class={selectClasses}
+          >
+            <option value="" disabled selected={!item?.[col.key]}>Elegir estado</option>
+            {states.map((state) => (
+              <option value={state.value} data-slug={state.slug} selected={item?.[col.key] === state.value}>
+                {state.value}
+              </option>
+            ))}
+          </select>
+        </label>
+      ))}
+
+      <label class="block sm:col-span-2 lg:col-span-3 xl:col-span-4">
+        <span class="mb-1.5 block text-sm font-medium text-slate-700">Nota</span>
+        <textarea
+          data-field="note"
+          data-prev={item?.note ?? ''}
+          rows="2"
+          placeholder="Sin notas"
+          class="block w-full resize-y rounded-md border border-slate-300 bg-white px-3 py-2.5 text-base text-slate-700 placeholder:text-slate-400 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/30 sm:py-2 sm:text-sm"
+        >{item?.note ?? ''}</textarea>
+      </label>
+    </div>
+  </div>
+</details>
