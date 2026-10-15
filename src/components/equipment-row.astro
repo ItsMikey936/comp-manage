@@ -1,0 +1,76 @@
+---
+// Sirve para las filas que vienen de la base de datos (item) y como plantilla de fila nueva (sin item)
+const { item = null, columns = [] } = Astro.props;
+
+const states = [
+  { value: 'Excelente', slug: 'excelente' },
+  { value: 'Bueno', slug: 'bueno' },
+  { value: 'Regular', slug: 'regular' },
+  { value: 'Dañado', slug: 'danado' },
+  { value: 'No disponible', slug: 'nodisponible' },
+];
+
+const slugOf = (value) => states.find((s) => s.value === value)?.slug ?? '';
+
+// El color del selector cambia según data-state (se actualiza solo al elegir otra opción)
+const selectClasses = [
+  'ml-auto block min-w-0 max-w-44 flex-1 cursor-pointer rounded-md border-0 px-2 py-2.5 text-base font-medium ring-1 ring-inset xl:ml-0 xl:w-full xl:min-w-28 xl:max-w-none xl:flex-none xl:py-1.5 xl:text-xs',
+  'bg-slate-100 text-slate-500 ring-slate-500/20',
+  'data-[state=excelente]:bg-emerald-50 data-[state=excelente]:text-emerald-700 data-[state=excelente]:ring-emerald-600/20',
+  'data-[state=bueno]:bg-sky-50 data-[state=bueno]:text-sky-700 data-[state=bueno]:ring-sky-600/20',
+  'data-[state=regular]:bg-amber-50 data-[state=regular]:text-amber-700 data-[state=regular]:ring-amber-600/20',
+  'data-[state=danado]:bg-rose-50 data-[state=danado]:text-rose-700 data-[state=danado]:ring-rose-600/20',
+  'data-[state=nodisponible]:bg-slate-100 data-[state=nodisponible]:text-slate-600 data-[state=nodisponible]:ring-slate-500/20',
+  'focus:outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-500',
+  '[&>option]:bg-white [&>option]:text-slate-900',
+].join(' ');
+
+const cellClasses =
+  'px-4 py-3 xl:px-4 max-xl:flex max-xl:items-center max-xl:justify-between max-xl:gap-4 max-xl:border-b max-xl:border-slate-100 before:content-[attr(data-label)] before:shrink-0 before:text-xs before:font-semibold before:text-slate-500 xl:before:hidden';
+---
+
+<tr
+  data-id={item?.id}
+  class="transition-colors hover:bg-slate-50 max-xl:block max-xl:overflow-hidden max-xl:rounded-xl max-xl:border max-xl:border-slate-200 max-xl:bg-white max-xl:shadow-sm max-xl:hover:bg-white"
+>
+  <td
+    data-label="Equipo"
+    class="px-4 py-3 font-medium text-slate-900 xl:px-4 max-xl:flex max-xl:items-center max-xl:justify-between max-xl:gap-4 max-xl:border-b max-xl:border-slate-100 max-xl:bg-slate-50 before:content-[attr(data-label)] before:shrink-0 before:text-xs before:font-semibold before:text-slate-500 xl:before:hidden"
+  >
+    <span data-id-cell>{item?.id}</span>
+  </td>
+
+  {columns.map((col) => (
+    <td data-label={col.label} class={cellClasses}>
+      <select
+        data-field={col.key}
+        data-prev={item?.[col.key] ?? ''}
+        data-state={slugOf(item?.[col.key])}
+        aria-label={col.label}
+        class={selectClasses}
+      >
+        <option value="" disabled selected={!item?.[col.key]}>Elegir estado</option>
+        {states.map((state) => (
+          <option value={state.value} data-slug={state.slug} selected={item?.[col.key] === state.value}>
+            {state.value}
+          </option>
+        ))}
+      </select>
+    </td>
+  ))}
+
+  <td
+    data-label="Nota"
+    class="px-4 py-3 xl:px-4 max-xl:flex max-xl:flex-col max-xl:gap-1.5 before:content-[attr(data-label)] before:shrink-0 before:text-xs before:font-semibold before:text-slate-500 xl:before:hidden"
+  >
+    <input
+      type="text"
+      data-field="note"
+      data-prev={item?.note ?? ''}
+      value={item?.note ?? ''}
+      placeholder="Sin notas"
+      aria-label="Nota"
+      class="block w-full rounded-md border border-transparent bg-transparent px-2 py-2.5 text-base xl:py-1.5 xl:text-sm text-slate-700 placeholder:text-slate-400 hover:border-slate-200 focus:border-sky-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/30 xl:min-w-40 max-xl:border-slate-200 max-xl:bg-white"
+    />
+  </td>
+</tr>
